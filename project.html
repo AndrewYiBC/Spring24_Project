@@ -314,6 +314,24 @@
 
         let poses = forward_kinematics(dofs_list);
 
+        // Viewpoint Vector (v)
+        let v_pose = poses[19]
+        let v = [
+            [v_pose[0][2]],
+            [v_pose[1][2]],
+            [v_pose[2][2]]
+        ]
+        let v_position = [
+            [v_pose[0][3]],
+            [v_pose[1][3]],
+            [v_pose[2][3]]
+        ]
+        engine.draw_debug_line(
+            v_position,
+            add_matrix_matrix(v_position, mul_matrix_scalar(v, 100.0)),
+            true, 0.005, 0x3333ff
+        )
+
         robot.set_mesh_visibility(engine, settings.disp_mesh);
         robot.set_wireframe_visibility(engine, settings.disp_wf);
         for (let i = 0; i < robot.num_links(); i++) {

@@ -389,10 +389,8 @@
         ];
         let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
         engine.draw_debug_line(a, b, true, 0.005, 0xffff33);
-        console.log(a)
-
-        // let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge)[1];
-        // engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
+        let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge_la)[1];
+        engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
 
         let dofs_optimized = optimization_solve(
             (dofs_input) => {
@@ -449,7 +447,7 @@
                     return l2_norm(sub_matrix_matrix(ee_pos, ee_pos_target))**2;
                 }
 
-                return f1() + f2() + f3() + f4();
+                return f1() + f2() + 10*f3() + f4();
             },
             dofs_list, 100, "bfgs"
         );

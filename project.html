@@ -44,7 +44,8 @@
     let kh = robot.kinematic_hierarchy;
 
     let tge = new TransformGizmoEngine(engine);
-    let idx_tge = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[1.0], [-0.25], [0.5]]);
+    let idx_tge_la = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[1.0], [-0.25], [0.5]]); // look-at target gizmos
+    let idx_tge_ee = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[0.3], [-0.3], [0.5]]);  // end-effector target gizmos
 
     // GUI
     let settings = {
@@ -91,7 +92,8 @@
             settings.dof5 = 0.0;
             settings.dof6 = 0.0;
             settings.dof7 = 0.0;
-            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge, identity_matrix(3), [[1.0], [-0.25], [0.5]]);
+            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_la, identity_matrix(3), [[1.0], [-0.25], [0.5]]);
+            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_ee, identity_matrix(3), [[0.3], [-0.3], [0.5]]);
         },
         select_all_links: function() {
             settings.link0 = true;
@@ -387,6 +389,7 @@
         ];
         let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
         engine.draw_debug_line(a, b, true, 0.005, 0xffff33);
+        console.log(a)
 
         // let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge)[1];
         // engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
@@ -409,11 +412,9 @@
                         [ee_pose[2][3]]
                     ];
                     let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
-                    let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge)[1];
+                    let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge_la)[1];
                     let p_proj = proj_onto_line_segment(a, b, p);
-                    return l2_norm(
-                        sub_matrix_matrix(p_proj, p)
-                    )**2;
+                    return l2_norm(sub_matrix_matrix(p_proj, p))**2;
                 }
                 // f2: Parallel Objective
                 let f2 = () => {
@@ -437,7 +438,18 @@
                         return 0;
                     }
                 }
-                return f1() + f2() + f3();
+                // f4: End-Effector Position Objective
+                let f4 = () => {
+                    let ee_pos = [
+                        [ee_pose[0][3]],
+                        [ee_pose[1][3]],
+                        [ee_pose[2][3]]
+                    ];
+                    let ee_pos_target = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge_ee)[1];
+                    return l2_norm(sub_matrix_matrix(ee_pos, ee_pos_target))**2;
+                }
+
+                return f1() + f2() + f3() + f4();
             },
             dofs_list, 100, "bfgs"
         );

@@ -82,6 +82,17 @@
     }
 
     let actions = {
+        reset: function() {
+            settings.dof0 = 0.0;
+            settings.dof1 = 0.0;
+            settings.dof2 = -1.5;
+            settings.dof3 = 0.0;
+            settings.dof4 = 0.0;
+            settings.dof5 = 0.0;
+            settings.dof6 = 0.0;
+            settings.dof7 = 0.0;
+            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge, identity_matrix(3), [[1.0], [-0.25], [0.5]]);
+        },
         select_all_links: function() {
             settings.link0 = true;
             settings.link1 = true;
@@ -142,6 +153,7 @@
     gui_dofs.add(settings, "dof6", joints[8].lower_bound, joints[8].upper_bound).disable();
     gui_dofs.add(settings, "dof7", joints[9].lower_bound, joints[9].upper_bound).disable();
     let gui_actions = gui.addFolder("Actions");
+    gui_actions.add(actions, "reset").name("Reset");
     gui_actions.add(actions, "select_all_links").name("Select All Frames");
     gui_actions.add(actions, "deselect_all_links").name("Deselect All Frames");
     let gui_links = gui.addFolder("Links");

@@ -21,6 +21,7 @@
 <body>
 <script type="module">
     import {ThreeEngine} from "./js/utils/utils_three.js";
+    import {TransformGizmoEngine} from "./js/utils/utils_transform_gizmo.js";
     import {XArm7Robot} from "./js/utils/utils_robot.js";
     import {get_default_lil_gui, refresh_displays} from "./js/utils/utils_three.js";
     import {
@@ -40,6 +41,9 @@
     let links = robot.links;
     let joints = robot.joints;
     let kh = robot.kinematic_hierarchy;
+
+    let tge = new TransformGizmoEngine(engine);
+    let idx_tge = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[1.0], [-1.0], [1.0]]);
 
     let settings = {
         disp_mesh: true,
@@ -349,6 +353,9 @@
         ];
         let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
         engine.draw_debug_line(a, b, true, 0.005, 0xffff33);
+
+        let p = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge)[1];
+        engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
 
         robot.set_mesh_visibility(engine, settings.disp_mesh);
         robot.set_wireframe_visibility(engine, settings.disp_wf);

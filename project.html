@@ -57,6 +57,10 @@
         disp_wf: false,
         disp_mesh_frame: false,
         continuous_solves: true,
+        w1: 1.0,
+        w2: 1.0,
+        w3: 10.0,
+        w4: 1.0,
         dof0: 0.0,
         dof1: 0.0,
         dof2: -1.5,
@@ -103,6 +107,12 @@
             tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p3, identity_matrix(3), [[0.75], [1.5], [-0.5]]);
             tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p4, identity_matrix(3), [[1.0], [0.5], [0.5]]);
             tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_ee, identity_matrix(3), [[0.3], [0.0], [0.7]]);
+        },
+        reset_weights: function() {
+            settings.w1 = 1.0;
+            settings.w2 = 1.0;
+            settings.w3 = 10.0;
+            settings.w4 = 1.0;
         },
         select_all_links: function() {
             settings.link0 = true;
@@ -156,6 +166,12 @@
     gui.add(settings, "disp_mesh_frame").name("Display Mesh only with Frame");
     gui.add(settings, "continuous_solves").name("Continuous Solves").disable();
     gui.add(actions, "reset_pos").name("Reset Positions");
+    let gui_weights = gui.addFolder("Objective Functions Weights");
+    gui_weights.add(settings, "w1", 0.0, 20.0).name("w1: Look At");
+    gui_weights.add(settings, "w2", 0.0, 20.0).name("w2: Parallel");
+    gui_weights.add(settings, "w3", 0.0, 20.0).name("w3: Base Range");
+    gui_weights.add(settings, "w4", 0.0, 20.0).name("w4: End Pos");
+    gui_weights.add(actions, "reset_weights").name("Reset Weights");
     let gui_dofs = gui.addFolder("DOFs");
     gui_dofs.add(settings, "dof0", joints[1].lower_bound, joints[1].upper_bound).disable();
     gui_dofs.add(settings, "dof1", joints[3].lower_bound, joints[3].upper_bound).disable();
@@ -580,7 +596,12 @@
                         return l2_norm(sub_matrix_matrix(ee_pos, ee_pos_target))**2;
                     }
 
-                    return f1() + f2() + 10*f3() + f4();
+                    return (
+                        settings.w1 * f1() +
+                        settings.w2 * f2() +
+                        settings.w3 * f3() +
+                        settings.w4 * f4()
+                    );
                 },
                 dofs_list, 100, "bfgs"
             );

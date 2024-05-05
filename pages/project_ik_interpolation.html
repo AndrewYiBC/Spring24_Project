@@ -288,6 +288,7 @@
         disp_wf: false,
         disp_mesh_frame: false,
         continuous_solves: true,
+        t: 0.0,
         dof0: 0.0,
         dof1: 0.0,
         dof2: -1.5,
@@ -383,6 +384,7 @@
     gui.add(settings, "disp_wf").name("Display Wireframe");
     gui.add(settings, "disp_mesh_frame").name("Display Mesh only with Frame");
     gui.add(settings, "continuous_solves").name("Continuous Solves").disable();
+    gui.add(settings, "t", 0.0, 1.0).disable();
     gui.add(actions, "reset_pos").name("Reset Positions");
     let gui_dofs = gui.addFolder("DOFs");
     gui_dofs.add(settings, "dof0", joints[1].lower_bound, joints[1].upper_bound).disable();
@@ -534,6 +536,7 @@
             t = t_2;
         }
         t = t / 3.0;
+        settings.t = t;
 
         let look_at_pose = straight_line_interpolate_SE3(pose1, pose2, t);
 

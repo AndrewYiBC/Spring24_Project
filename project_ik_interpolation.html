@@ -208,6 +208,47 @@
         ];
     }
 
+    function inv_SE3(SE3) {
+        let R = [
+            [SE3[0][0], SE3[0][1], SE3[0][2]],
+            [SE3[1][0], SE3[1][1], SE3[1][2]],
+            [SE3[2][0], SE3[2][1], SE3[2][2]]
+        ];
+        let R_transpose = transpose(R);
+        let t_negative = [
+            [-SE3[0][3]],
+            [-SE3[1][3]],
+            [-SE3[2][3]]
+        ];
+        let t_new = mul_matrix_matrix(R_transpose, t_negative);
+        return [
+            [R_transpose[0][0], R_transpose[0][1], R_transpose[0][2], t_new[0][0]],
+            [R_transpose[1][0], R_transpose[1][1], R_transpose[1][2], t_new[1][0]],
+            [R_transpose[2][0], R_transpose[2][1], R_transpose[2][2], t_new[2][0]],
+            [0.0, 0.0, 0.0, 1.0]
+        ];
+    }
+
+    function disp_SE3(SE3_1, SE3_2) {
+        return mul_matrix_matrix(inv_SE3(SE3_1), SE3_2);
+    }
+
+    function disp_based_dis_SE3(SE3_1, SE3_2) {
+        let log_disp = log_SE3(disp_SE3(SE3_1, SE3_2));
+        let alpha_1 = log_disp[2][1];
+        let alpha_2 = log_disp[0][2];
+        let alpha_3 = log_disp[1][0];
+        let alpha_4 = log_disp[0][3];
+        let alpha_5 = log_disp[1][3];
+        let alpha_6 = log_disp[2][3];
+
+        return l2_norm([alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6]);
+    }
+
+    function straight_line_interpolate_SE3(SE3_1, SE3_2, t) {
+        return mul_matrix_matrix(SE3_1, exp_se3(mul_matrix_scalar(log_SE3(disp_SE3(SE3_1, SE3_2)), t)));
+    }
+
     let engine = ThreeEngine.new_default_3d();
 
     let robot = new XArm7Robot();
@@ -225,7 +266,7 @@
     let theta1 = Math.PI / 4.0;
     let u1 = mul_matrix_scalar(normalized_matrix(u1_dir), theta1);
     let R1 = exp_so3(so3_from_u(u1));
-    let pos1 = [[0.3], [-0.5], [0.7]];
+    let pos1 = [[0.5], [-0.5], [1.0]];
 
     let u2_dir = [
         [1.0],
@@ -235,7 +276,7 @@
     let theta2 = -Math.PI / 4.0;
     let u2 = mul_matrix_scalar(normalized_matrix(u2_dir), theta2);
     let R2 = exp_so3(so3_from_u(u2));
-    let pos2 = [[0.3], [0.5], [0.7]];
+    let pos2 = [[0.5], [0.5], [1.0]];
 
     let tge = new TransformGizmoEngine(engine);
     let idx_tge_p1 = tge.add_gizmo_SO3_matrix_and_position(engine, R1, pos1); // look-at spline point 1 target gizmos
@@ -492,29 +533,20 @@
         return output_poses;
     }
 
-    ////////////////////////////////
-    // Projection Utility Functions
-    // Following the Formulas in Note Section 4.2.9
-    function proj_onto_line_segment(a, b, p) {
-        let clamped = proj_clamped(
-            sub_matrix_matrix(p, a),
-            sub_matrix_matrix(b, a)
-        );
-        return add_matrix_matrix(clamped, a);
-    }
-
-    function proj_clamped(v, u) {
-        let coef = Math.min(Math.max(proj_scalar(v, u), 0), 1);
-        return mul_matrix_scalar(u, coef);
-    }
-
-    function proj_scalar(v, u) {
-        return dot_product(v, u) / dot_product(u, u);
-    }
-
     engine.animation_loop( ()  => {
-        // TODO: Linear Interpolation
-        let look_at_pos = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge_p1)[1];
+        let pose1 = tge.get_gizmo_pose_as_SE3_matrix(idx_tge_p1);
+        let pose2 = tge.get_gizmo_pose_as_SE3_matrix(idx_tge_p2);
+
+        let t;
+        let t_2 = engine.get_time_elapsed() % 6.0;
+        if (t_2 > 3.0) {
+            t = 6.0 - t_2;
+        } else {
+            t = t_2;
+        }
+        t = t / 3.0;
+
+        let look_at_pose = straight_line_interpolate_SE3(pose1, pose2, t);
 
         let dofs_list = [
             settings.dof0,
@@ -550,25 +582,6 @@
         ]
         refresh_displays(gui);
 
-        let poses = forward_kinematics(dofs_list);
-
-        // Viewpoint Vector (v)
-        let v_pose = poses[19];
-        let v = [
-            [v_pose[0][2]],
-            [v_pose[1][2]],
-            [v_pose[2][2]]
-        ];
-        let a = [
-            [v_pose[0][3]],
-            [v_pose[1][3]],
-            [v_pose[2][3]]
-        ];
-        let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
-        engine.draw_debug_line(a, b, true, 0.005, 0xffff33);
-        let p = look_at_pos;
-        engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
-
         let dofs_optimized = dofs_list;
         if (settings.continuous_solves) {
             dofs_optimized = optimization_solve(
@@ -578,20 +591,7 @@
                     let base_pose = poses_current[2]; // base
                     // f1: Look At Objective
                     let f1 = () => {
-                        let v = [
-                            [ee_pose[0][2]],
-                            [ee_pose[1][2]],
-                            [ee_pose[2][2]]
-                        ];
-                        let a = [
-                            [ee_pose[0][3]],
-                            [ee_pose[1][3]],
-                            [ee_pose[2][3]]
-                        ];
-                        let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
-                        let p = look_at_pos;
-                        let p_proj = proj_onto_line_segment(a, b, p);
-                        return l2_norm(sub_matrix_matrix(p_proj, p))**2;
+                        return disp_based_dis_SE3(ee_pose, look_at_pose)**2;
                     }
 
                     return (
@@ -603,7 +603,7 @@
         }
 
         update_dofs_settings(dofs_optimized);
-        poses = forward_kinematics(dofs_optimized);
+        let poses = forward_kinematics(dofs_optimized);
 
         robot.set_mesh_visibility(engine, settings.disp_mesh);
         robot.set_wireframe_visibility(engine, settings.disp_wf);

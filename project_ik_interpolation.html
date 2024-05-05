@@ -259,7 +259,7 @@
     let kh = robot.kinematic_hierarchy;
 
     let u1_dir = [
-        [0.2],
+        [0.4],
         [1.0],
         [0.0]
     ];
@@ -269,7 +269,7 @@
     let pos1 = [[0.7], [-0.5], [0.3]];
 
     let u2_dir = [
-        [-0.2],
+        [-0.4],
         [1.0],
         [0.0]
     ];
@@ -289,8 +289,6 @@
         disp_wf: false,
         disp_mesh_frame: false,
         continuous_solves: true,
-        w1: 1.0,
-        w2: 1.0,
         dof0: 0.0,
         dof1: 0.0,
         dof2: -1.5,
@@ -334,10 +332,6 @@
             settings.continuous_solves = true;
             tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p1, R1, pos1);
             tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p2, R2, pos2);
-        },
-        reset_weights: function() {
-            settings.w1 = 1.0;
-            settings.w2 = 1.0;
         },
         select_all_links: function() {
             settings.link0 = true;
@@ -391,10 +385,6 @@
     gui.add(settings, "disp_mesh_frame").name("Display Mesh only with Frame");
     gui.add(settings, "continuous_solves").name("Continuous Solves").disable();
     gui.add(actions, "reset_pos").name("Reset Positions");
-    let gui_weights = gui.addFolder("Objective Functions Weights");
-    gui_weights.add(settings, "w1", 0.0, 20.0).name("w1: End Pose");
-    gui_weights.add(settings, "w2", 0.0, 20.0).name("w2: Base Pose");
-    gui_weights.add(actions, "reset_weights").name("Reset Weights");
     let gui_dofs = gui.addFolder("DOFs");
     gui_dofs.add(settings, "dof0", joints[1].lower_bound, joints[1].upper_bound).disable();
     gui_dofs.add(settings, "dof1", joints[3].lower_bound, joints[3].upper_bound).disable();
@@ -593,10 +583,7 @@
                     let f1 = () => {
                         return disp_based_dis_SE3(ee_pose, look_at_pose)**2;
                     }
-
-                    return (
-                        settings.w1 * f1()
-                    );
+                    return f1();
                 },
                 dofs_list, 100, "bfgs"
             );

@@ -259,24 +259,24 @@
     let kh = robot.kinematic_hierarchy;
 
     let u1_dir = [
-        [-1.0],
+        [0.2],
         [1.0],
-        [1.0]
+        [0.0]
     ];
-    let theta1 = Math.PI / 4.0;
+    let theta1 = Math.PI / 2.0;
     let u1 = mul_matrix_scalar(normalized_matrix(u1_dir), theta1);
     let R1 = exp_so3(so3_from_u(u1));
-    let pos1 = [[0.5], [-0.5], [1.0]];
+    let pos1 = [[0.7], [-0.5], [0.3]];
 
     let u2_dir = [
+        [-0.2],
         [1.0],
-        [1.0],
-        [1.0]
+        [0.0]
     ];
-    let theta2 = -Math.PI / 4.0;
+    let theta2 = 3.0 * Math.PI / 4.0;
     let u2 = mul_matrix_scalar(normalized_matrix(u2_dir), theta2);
     let R2 = exp_so3(so3_from_u(u2));
-    let pos2 = [[0.5], [0.5], [1.0]];
+    let pos2 = [[0.5], [0.3], [0.5]];
 
     let tge = new TransformGizmoEngine(engine);
     let idx_tge_p1 = tge.add_gizmo_SO3_matrix_and_position(engine, R1, pos1); // look-at spline point 1 target gizmos

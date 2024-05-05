@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CPSC 487/587</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.3.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quaternion@1.5.1/quaternion.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/numeric@1.2.6/numeric-1.2.6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stats.js@0.17.0/build/stats.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+              "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+              "three/": "https://unpkg.com/three@0.160.0/"
+            }
+        }
+    </script>
+</head>
+<body>
+<script type="module">
+    import {ThreeEngine} from "./js/utils/utils_three.js";
+    import {TransformGizmoEngine} from "./js/utils/utils_transform_gizmo.js";
+    import {XArm7Robot} from "./js/utils/utils_robot.js";
+    import {optimization_solve} from "./js/utils/utils_optimization.js";
+    import {get_default_lil_gui, refresh_displays} from "./js/utils/utils_three.js";
+    import {
+        add_matrix_matrix,
+        sub_matrix_matrix,
+        mul_matrix_scalar,
+        mul_matrix_matrix,
+        identity_matrix,
+        dot_product
+    } from "./js/utils/utils_math.js";
+
+    let engine = ThreeEngine.new_default_3d();
+
+    let robot = new XArm7Robot();
+    robot.spawn_robot(engine);
+
+    let links = robot.links;
+    let joints = robot.joints;
+    let kh = robot.kinematic_hierarchy;
+
+    let tge = new TransformGizmoEngine(engine);
+    let idx_tge_p1 = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[0.3], [-0.5], [0.7]]);  // look-at spline point 1 target gizmos
+    let idx_tge_p2 = tge.add_gizmo_SO3_matrix_and_position(engine, identity_matrix(3), [[0.3], [0.5], [0.7]]);   // look-at spline point 2 target gizmos
+
+    ////////////////////////////////
+    // GUI
+    let settings = {
+        disp_mesh: true,
+        disp_wf: false,
+        disp_mesh_frame: false,
+        continuous_solves: true,
+        w1: 1.0,
+        w2: 1.0,
+        dof0: 0.0,
+        dof1: 0.0,
+        dof2: -1.5,
+        dof3: 0.0,
+        dof4: 0.0,
+        dof5: 0.0,
+        dof6: 0.0,
+        dof7: 0.0,
+        link0: false,
+        link1: false,
+        link2: false,
+        link3: false,
+        link4: false,
+        link5: false,
+        link6: false,
+        link7: false,
+        link8: false,
+        link9: false,
+        link10: false,
+        link11: false,
+        link12: false,
+        link13: false,
+        link14: false,
+        link15: false,
+        link16: false,
+        link17: false,
+        link18: false,
+        link19: false
+    }
+
+    let actions = {
+        reset_pos: function() {
+            settings.dof0 = 0.0;
+            settings.dof1 = 0.0;
+            settings.dof2 = -1.5;
+            settings.dof3 = 0.0;
+            settings.dof4 = 0.0;
+            settings.dof5 = 0.0;
+            settings.dof6 = 0.0;
+            settings.dof7 = 0.0;
+            settings.continuous_solves = true;
+            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p1, identity_matrix(3), [[0.3], [-0.5], [0.7]]);
+            tge.set_pose_of_gizmo_SO3_matrix_and_position(idx_tge_p2, identity_matrix(3), [[0.3], [0.5], [0.7]]);
+        },
+        reset_weights: function() {
+            settings.w1 = 1.0;
+            settings.w2 = 1.0;
+        },
+        select_all_links: function() {
+            settings.link0 = true;
+            settings.link1 = true;
+            settings.link2 = true;
+            settings.link3 = true;
+            settings.link4 = true;
+            settings.link5 = true;
+            settings.link6 = true;
+            settings.link7 = true;
+            settings.link8 = true;
+            settings.link9 = true;
+            settings.link10 = true;
+            settings.link11 = true;
+            settings.link12 = true;
+            settings.link13 = true;
+            settings.link14 = true;
+            settings.link15 = true;
+            settings.link16 = true;
+            settings.link17 = true;
+            settings.link18 = true;
+            settings.link19 = true;
+        },
+        deselect_all_links: function() {
+            settings.link0 = false;
+            settings.link1 = false;
+            settings.link2 = false;
+            settings.link3 = false;
+            settings.link4 = false;
+            settings.link5 = false;
+            settings.link6 = false;
+            settings.link7 = false;
+            settings.link8 = false;
+            settings.link9 = false;
+            settings.link10 = false;
+            settings.link11 = false;
+            settings.link12 = false;
+            settings.link13 = false;
+            settings.link14 = false;
+            settings.link15 = false;
+            settings.link16 = false;
+            settings.link17 = false;
+            settings.link18 = false;
+            settings.link19 = false;
+        }
+    }
+
+    let gui = get_default_lil_gui();
+    gui.add(settings, "disp_mesh").name("Display Mesh");
+    gui.add(settings, "disp_wf").name("Display Wireframe");
+    gui.add(settings, "disp_mesh_frame").name("Display Mesh only with Frame");
+    gui.add(settings, "continuous_solves").name("Continuous Solves").disable();
+    gui.add(actions, "reset_pos").name("Reset Positions");
+    let gui_weights = gui.addFolder("Objective Functions Weights");
+    gui_weights.add(settings, "w1", 0.0, 20.0).name("w1: Look At");
+    gui_weights.add(settings, "w2", 0.0, 20.0).name("w2: Parallel");
+    gui_weights.add(actions, "reset_weights").name("Reset Weights");
+    let gui_dofs = gui.addFolder("DOFs");
+    gui_dofs.add(settings, "dof0", joints[1].lower_bound, joints[1].upper_bound).disable();
+    gui_dofs.add(settings, "dof1", joints[3].lower_bound, joints[3].upper_bound).disable();
+    gui_dofs.add(settings, "dof2", joints[4].lower_bound, joints[4].upper_bound).disable();
+    gui_dofs.add(settings, "dof3", joints[5].lower_bound, joints[5].upper_bound).disable();
+    gui_dofs.add(settings, "dof4", joints[6].lower_bound, joints[6].upper_bound).disable();
+    gui_dofs.add(settings, "dof5", joints[7].lower_bound, joints[7].upper_bound).disable();
+    gui_dofs.add(settings, "dof6", joints[8].lower_bound, joints[8].upper_bound).disable();
+    gui_dofs.add(settings, "dof7", joints[9].lower_bound, joints[9].upper_bound).disable();
+    let gui_actions = gui.addFolder("Actions");
+    gui_actions.add(actions, "select_all_links").name("Select All Frames");
+    gui_actions.add(actions, "deselect_all_links").name("Deselect All Frames");
+    let gui_links = gui.addFolder("Links");
+    gui_links.add(settings, "link0").name("link 0: " + links[0].link_name);
+    gui_links.add(settings, "link1").name("link 1: " + links[1].link_name);
+    gui_links.add(settings, "link2").name("link 2: " + links[2].link_name);
+    gui_links.add(settings, "link3").name("link 3: " + links[3].link_name);
+    gui_links.add(settings, "link4").name("link 4: " + links[4].link_name);
+    gui_links.add(settings, "link5").name("link 5: " + links[5].link_name);
+    gui_links.add(settings, "link6").name("link 6: " + links[6].link_name);
+    gui_links.add(settings, "link7").name("link 7: " + links[7].link_name);
+    gui_links.add(settings, "link8").name("link 8: " + links[8].link_name);
+    gui_links.add(settings, "link9").name("link 9: " + links[9].link_name);
+    gui_links.add(settings, "link10").name("link 10: " + links[10].link_name);
+    gui_links.add(settings, "link11").name("link 11: " + links[11].link_name);
+    gui_links.add(settings, "link12").name("link 12: " + links[12].link_name);
+    gui_links.add(settings, "link13").name("link 13: " + links[13].link_name);
+    gui_links.add(settings, "link14").name("link 14: " + links[14].link_name);
+    gui_links.add(settings, "link15").name("link 15: " + links[15].link_name);
+    gui_links.add(settings, "link16").name("link 16: " + links[16].link_name);
+    gui_links.add(settings, "link17").name("link 17: " + links[17].link_name);
+    gui_links.add(settings, "link18").name("link 18: " + links[18].link_name);
+    gui_links.add(settings, "link19").name("link 19: " + links[19].link_name);
+
+    function update_dofs_settings(dofs) {
+        settings.dof0 = dofs[0];
+        settings.dof1 = dofs[1];
+        settings.dof2 = dofs[2];
+        settings.dof3 = dofs[3];
+        settings.dof4 = dofs[4];
+        settings.dof5 = dofs[5];
+        settings.dof6 = dofs[6];
+        settings.dof7 = dofs[7];
+    }
+
+    ////////////////////////////////
+    // General Utility Functions
+    function l2_norm(v) {
+        let sum = 0;
+        for (let i = 0; i < v.length; i++) {
+            sum += v[i]**2;
+        }
+        return Math.sqrt(sum);
+    }
+
+    ////////////////////////////////
+    // Representation: SE3
+    // SE3 Utility Functions
+    function exp_so3(so3) {
+        let u = [
+            [so3[2][1]],
+            [so3[0][2]],
+            [so3[1][0]]
+        ];
+
+        let beta = l2_norm(u);
+
+        let p, q;
+        if (beta < 0.0001) {
+            p = 1.0 - beta**2 / 6.0 + beta**4 / 120.0;
+            q = 1.0/2.0 - beta**2 / 24.0 + beta**4 / 720.0;
+        }
+        else {
+            p = Math.sin(beta) / beta;
+            q = (1.0 - Math.cos(beta)) / beta**2;
+        }
+
+        let term1 = identity_matrix(3);
+        let term2 = mul_matrix_scalar(so3, p);
+        let term3 = mul_matrix_scalar(mul_matrix_matrix(so3, so3), q);
+
+        return add_matrix_matrix(term1, add_matrix_matrix(term2, term3));
+    }
+
+    ////////////////////////////////
+    // Link Gizmos Drawing Functions
+    function scale_gizmos_axis(v) {
+        return mul_matrix_scalar(v, 0.05);
+    }
+
+    function draw_gizmos_from_SE3(SE3) {
+        let x = [
+            [SE3[0][0]],
+            [SE3[1][0]],
+            [SE3[2][0]]
+        ];
+        let y = [
+            [SE3[0][1]],
+            [SE3[1][1]],
+            [SE3[2][1]]
+        ];
+        let z = [
+            [SE3[0][2]],
+            [SE3[1][2]],
+            [SE3[2][2]]
+        ];
+        let t = [
+            [SE3[0][3]],
+            [SE3[1][3]],
+            [SE3[2][3]]
+        ];
+        engine.draw_debug_line(t, add_matrix_matrix(t, scale_gizmos_axis(x)), true, 0.002, 0xff3333);
+        engine.draw_debug_line(t, add_matrix_matrix(t, scale_gizmos_axis(y)), true, 0.002, 0x33ff33);
+        engine.draw_debug_line(t, add_matrix_matrix(t, scale_gizmos_axis(z)), true, 0.002, 0x3333ff);
+    }
+
+    ////////////////////////////////
+    // Forward Kinematics
+    // Following the Pseudocode in Note Section 4.1.7
+    function forward_kinematics(dofs) {
+        let output_poses = [];
+        for(let i = 0; i < links.length; i++) {
+            output_poses.push(identity_matrix(4));
+        }
+        kh.forEach(layer => {
+            layer.forEach(link_idx => {
+                if (link_idx !== 0) {
+                    let curr_link = links[link_idx];
+                    let parent_link_idx = curr_link.parent_link_idx;
+                    let parent_joint_idx = curr_link.parent_joint_idx;
+                    let curr_joint = joints[parent_joint_idx];
+                    let joint_type = curr_joint.joint_type_string;
+
+                    let T_i = output_poses[parent_link_idx];
+                    let T_c = curr_joint.xyz_rpy_SE3_matrix;
+                    let curr_pose = mul_matrix_matrix(T_i, T_c);
+
+                    let T_v = identity_matrix(4);
+                    if (joint_type === "revolute") {
+                        let joint_value = dofs[curr_joint.dof_idx];
+                        T_v = identity_matrix(4);
+                        let axis = curr_joint.axis;
+                        let a = axis[0];
+                        let b = axis[1];
+                        let c = axis[2];
+                        let so3_unit = [
+                            [0, -c, b],
+                            [c, 0, -a],
+                            [-b, a, 0]
+                        ];
+                        let so3 = mul_matrix_scalar(so3_unit, joint_value);
+                        let SO3 = exp_so3(so3);
+                        T_v[0][0] = SO3[0][0];
+                        T_v[0][1] = SO3[0][1];
+                        T_v[0][2] = SO3[0][2];
+                        T_v[1][0] = SO3[1][0];
+                        T_v[1][1] = SO3[1][1];
+                        T_v[1][2] = SO3[1][2];
+                        T_v[2][0] = SO3[2][0];
+                        T_v[2][1] = SO3[2][1];
+                        T_v[2][2] = SO3[2][2];
+                    } else if (joint_type === "prismatic") {
+                        let joint_value = dofs[curr_joint.dof_idx];
+                        let axis = curr_joint.axis;
+                        let t = mul_matrix_scalar(axis, joint_value);
+                        T_v[0][3] = t[0][0];
+                        T_v[1][3] = t[1][0];
+                        T_v[2][3] = t[2][0];
+                    }
+                    curr_pose = mul_matrix_matrix(curr_pose, T_v);
+                    output_poses[link_idx] = curr_pose;
+                }
+            })
+        })
+        return output_poses;
+    }
+
+    ////////////////////////////////
+    // Projection Utility Functions
+    // Following the Formulas in Note Section 4.2.9
+    function proj_onto_line_segment(a, b, p) {
+        let clamped = proj_clamped(
+            sub_matrix_matrix(p, a),
+            sub_matrix_matrix(b, a)
+        );
+        return add_matrix_matrix(clamped, a);
+    }
+
+    function proj_clamped(v, u) {
+        let coef = Math.min(Math.max(proj_scalar(v, u), 0), 1);
+        return mul_matrix_scalar(u, coef);
+    }
+
+    function proj_scalar(v, u) {
+        return dot_product(v, u) / dot_product(u, u);
+    }
+
+    engine.animation_loop( ()  => {
+        // TODO: Linear Interpolation
+        let look_at_pos = tge.get_gizmo_pose_as_SO3_matrix_and_position(idx_tge_p1)[1];
+
+        let dofs_list = [
+            settings.dof0,
+            settings.dof1,
+            settings.dof2,
+            settings.dof3,
+            settings.dof4,
+            settings.dof5,
+            settings.dof6,
+            settings.dof7
+        ];
+        let links_list = [
+            settings.link0,
+            settings.link1,
+            settings.link2,
+            settings.link3,
+            settings.link4,
+            settings.link5,
+            settings.link6,
+            settings.link7,
+            settings.link8,
+            settings.link9,
+            settings.link10,
+            settings.link11,
+            settings.link12,
+            settings.link13,
+            settings.link14,
+            settings.link15,
+            settings.link16,
+            settings.link17,
+            settings.link18,
+            settings.link19
+        ]
+        refresh_displays(gui);
+
+        let poses = forward_kinematics(dofs_list);
+
+        // Viewpoint Vector (v)
+        let v_pose = poses[19];
+        let v = [
+            [v_pose[0][2]],
+            [v_pose[1][2]],
+            [v_pose[2][2]]
+        ];
+        let a = [
+            [v_pose[0][3]],
+            [v_pose[1][3]],
+            [v_pose[2][3]]
+        ];
+        let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
+        engine.draw_debug_line(a, b, true, 0.005, 0xffff33);
+        let p = look_at_pos;
+        engine.draw_debug_line(p, proj_onto_line_segment(a, b, p), true, 0.005, 0xff33ff);
+
+        let dofs_optimized = dofs_list;
+        if (settings.continuous_solves) {
+            dofs_optimized = optimization_solve(
+                (dofs_input) => {
+                    let poses_current = forward_kinematics(dofs_input);
+                    let ee_pose = poses_current[19];  // end-effector
+                    let base_pose = poses_current[2]; // base
+                    // f1: Look At Objective
+                    let f1 = () => {
+                        let v = [
+                            [ee_pose[0][2]],
+                            [ee_pose[1][2]],
+                            [ee_pose[2][2]]
+                        ];
+                        let a = [
+                            [ee_pose[0][3]],
+                            [ee_pose[1][3]],
+                            [ee_pose[2][3]]
+                        ];
+                        let b = add_matrix_matrix(a, mul_matrix_scalar(v, 100.0));
+                        let p = look_at_pos;
+                        let p_proj = proj_onto_line_segment(a, b, p);
+                        return l2_norm(sub_matrix_matrix(p_proj, p))**2;
+                    }
+                    // f2: Parallel Objective
+                    let f2 = () => {
+                        let s = [
+                            [ee_pose[0][1]],
+                            [ee_pose[1][1]],
+                            [ee_pose[2][1]]
+                        ];
+                        return (dot_product(s, [[0], [0], [1]])**2);
+                    }
+
+                    return (
+                        settings.w1 * f1() +
+                        settings.w2 * f2()
+                    );
+                },
+                dofs_list, 100, "bfgs"
+            );
+        }
+
+        update_dofs_settings(dofs_optimized);
+        poses = forward_kinematics(dofs_optimized);
+
+        robot.set_mesh_visibility(engine, settings.disp_mesh);
+        robot.set_wireframe_visibility(engine, settings.disp_wf);
+        for (let i = 0; i < robot.num_links(); i++) {
+            robot.set_link_mesh_pose_from_SE3_matrix(engine, i, poses[i]);
+            if (links_list[i]) {
+                draw_gizmos_from_SE3(poses[i]);
+            } else {
+                if (settings.disp_mesh_frame) {
+                    robot.set_link_mesh_visibility(engine, i, false);
+                    robot.set_link_wireframe_visibility(engine, i, false);
+                }
+            }
+        }
+    });
+
+</script>
+</body>
+</html>
